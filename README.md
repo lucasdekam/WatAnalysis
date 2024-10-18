@@ -8,7 +8,7 @@ Some codes here are developed based on [`MDAnalysis`](https://userguide.mdanalys
 ## Installation
 
 ```bash
-python setpy.py install
+python setup.py install
 # if you want to modify the code later, use the developer mode
 #python setup.py develop
 ```
