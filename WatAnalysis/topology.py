@@ -22,6 +22,8 @@ def find_water_residues(
     u: MDAnalysis.core.universe.Universe
         Universe object containing water molecules; this object will be modified
         to have residues
+    oh_cutoff: float
+        Maximum cutoff distance for intramolecular O-H bonds, in Angstrom
     """
     # Add the resname topology attribute
     u.add_TopologyAttr("resname")
@@ -60,20 +62,37 @@ def find_layer_residues(
     u: Universe,
     num_per_layer: int,
     metal_sel: str = "name Pt",
-    name_metal: str = "METAL",
+    resname_metal: str = "METAL",
     surface_idx: tuple[int] | None = None,
     resname_surface: str = "SURFACE",
 ):
+    """
+    Define different residues for all metal layers in the simulation box. Layers are
+    defined in the z-direction. This procedure makes most sense for layers in the x-y
+    plane, and might not work as intended for stepped surfaces.
+    Optionally, the surface layers are defined by the argument surface_idx; their
+    residues are named "SURFACE".
+    All metal residues, including the surfaces, are assigned to a new Segment with segid
+    <resname_metal>.
+
+    Parameters
+    ----------
+    u: MDAnalysis.core.universe.Universe
+        Universe object containing water molecules; this object will be modified
+        to have residues
+    num_per_layer: int
+        Number of metal atoms per layer, e.g., 20 for a 5x4 surface
+    """
     u.add_TopologyAttr("resname")
 
     metal_atoms = u.select_atoms(metal_sel)
     z_coords = metal_atoms.positions[:, 2]
     sorted_ids = np.argsort(z_coords).reshape(-1, num_per_layer)
 
-    seg = u.add_Segment(segid=name_metal)
+    seg = u.add_Segment(segid=resname_metal)
 
     for i, layer_ids in enumerate(sorted_ids):
-        name = name_metal
+        name = resname_metal
         if i in np.atleast_1d(surface_idx):
             name = resname_surface
 
