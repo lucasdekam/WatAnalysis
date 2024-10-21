@@ -1,6 +1,7 @@
 import numpy as np
 from MDAnalysis.lib.distances import capped_distance
 from MDAnalysis.core.universe import Universe
+from MDAnalysis.exceptions import NoDataError
 
 
 def find_water_residues(
@@ -26,7 +27,10 @@ def find_water_residues(
         Maximum cutoff distance for intramolecular O-H bonds, in Angstrom
     """
     # Add the resname topology attribute
-    u.add_TopologyAttr("resname")
+    try:
+        u.residues.resnames
+    except NoDataError:
+        u.add_TopologyAttr("resname")
 
     # Select hydrogen and oxygen atom groups
     hydrogen_atoms = u.select_atoms(hydrogen_sel)
@@ -83,7 +87,10 @@ def find_layer_residues(
     num_per_layer: int
         Number of metal atoms per layer, e.g., 20 for a 5x4 surface
     """
-    u.add_TopologyAttr("resname")
+    try:
+        u.residues.resnames
+    except NoDataError:
+        u.add_TopologyAttr("resname")
 
     metal_atoms = u.select_atoms(metal_sel)
     z_coords = metal_atoms.positions[:, 2]
