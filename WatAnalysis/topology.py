@@ -75,7 +75,7 @@ def find_layer_residues(
     defined in the z-direction. This procedure makes most sense for layers in the x-y
     plane, and might not work as intended for stepped surfaces.
     Optionally, the surface layers are defined by the argument surface_idx; their
-    residues are named "SURFACE".
+    residues are named "SURF".
     All metal residues, including the surfaces, are assigned to a new Segment with segid
     <resname_metal>.
 

@@ -54,7 +54,7 @@ class WaterProfiles(AnalysisBase):
     ----------
     universe : MDAnalysis.core.universe.Universe
         A Universe containing the trajectory
-    surface_sel: str = "resname SURFACE"
+    surface_sel: str = "resname SURF"
         Selection string for surface Residues.
     oxygen_sel : str = "name O"
         Selection string for oxygen Atoms
@@ -71,7 +71,7 @@ class WaterProfiles(AnalysisBase):
     def __init__(
         self,
         universe: Universe,
-        surface_sel: str = "resname SURFACE",
+        surface_sel: str = "resname SURF",
         water_sel: str = "resname WAT",
         oxygen_sel: str = "name O",
         hydrogen_sel: str = "name H",
