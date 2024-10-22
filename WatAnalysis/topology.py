@@ -66,9 +66,9 @@ def find_layer_residues(
     u: Universe,
     num_per_layer: int,
     metal_sel: str = "name Pt",
-    resname_metal: str = "METAL",
+    resname_metal: str = "MET",
     surface_idx: tuple[int] | None = None,
-    resname_surface: str = "SURFACE",
+    resname_surface: str = "SURF",
 ):
     """
     Define different residues for all metal layers in the simulation box. Layers are
