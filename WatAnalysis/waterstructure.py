@@ -426,6 +426,7 @@ class WaterStructure(AnalysisBase):
         max_tau: float,
         delta_tau: float,
         interval: tuple[float, float],
+        step: int = 1,
     ):
         """
         Calculate the water dipole autocorrelation
@@ -461,12 +462,16 @@ class WaterStructure(AnalysisBase):
                 n_selected_dipoles = np.sum(mask)
             else:
                 # For t > 0, calculate the dot products between shifted arrays
-                _dipoles_0 = self.results.dipoles[:-t] * mask[:-t]  # dipole(t=0)
-                _dipoles_t = self.results.dipoles[t:] * mask[t:]  # dipole(t=tau)
+                _dipoles_0 = (
+                    self.results.dipoles[:-t:step] * mask[:-t:step]
+                )  # dipole(t=0)
+                _dipoles_t = (
+                    self.results.dipoles[t::step] * mask[t::step]
+                )  # dipole(t=tau)
                 dot_products = _legendre(
                     np.sum(_dipoles_0 * _dipoles_t, axis=2)
                 )  # Shape: (num_timesteps - t, num_molecules)
-                n_selected_dipoles = np.sum(mask[:-t] * mask[t:])
+                n_selected_dipoles = np.sum(mask[:-t:step] * mask[t::step])
 
             # Average over molecules and time origins
             acf[i] = np.sum(dot_products) / n_selected_dipoles
