@@ -480,6 +480,7 @@ class WaterStructure(AnalysisBase):
         max_tau: float,
         delta_tau: float,
         interval: tuple[float, float],
+        step: int = 1,
     ):
         """
         Calculate the water survival probability
@@ -504,13 +505,13 @@ class WaterStructure(AnalysisBase):
 
             if tau > 0:
                 # N(t), shape: (num_timesteps - tau, )
-                n_t = np.sum(mask, axis=1)[:-tau]
+                n_t = np.sum(mask, axis=1)[:-tau:step]
 
                 # shape: (num_timesteps - tau, num_molecules)
-                intersection = np.ones(mask[:-tau].shape)
+                intersection = np.ones(mask[:-tau:step].shape)
                 for k in range(tau):
-                    intersection *= mask[k : -tau + k]
-                intersection *= mask[tau:]
+                    intersection *= mask[k : -tau + k : step]
+                intersection *= mask[tau::step]
 
                 n_t_tau = np.sum(
                     intersection, axis=1
