@@ -12,6 +12,7 @@ from MDAnalysis.exceptions import NoDataError
 from MDAnalysis.lib.distances import capped_distance, minimize_vectors
 
 from . import utils
+from .structure import identify_water_molecules
 from .preprocess import make_selection, make_selection_two
 
 
@@ -135,7 +136,7 @@ class WaterStructure(AnalysisBase):
         self.min_vector = kwargs.get("min_vector", True)
         self.dz = kwargs.get("dz", 0.1)
 
-        self.water_dict = utils.identify_water_molecules(
+        self.water_dict = identify_water_molecules(
             self.hydrogen_ag.positions,
             self.oxygen_ag.positions,
             self.universe.dimensions,
