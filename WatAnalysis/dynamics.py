@@ -49,7 +49,7 @@ def calc_vector_autocorrelation(
             dot_products = np.sum(
                 vectors * vectors * mask, axis=2
             )  # Shape: (num_timesteps, num_molecules)
-            n_selected_vectors = np.sum(mask)
+            n_selected_vectors = np.count_nonzero(mask)
         else:
             # For t > 0, calculate the dot products between shifted arrays
             _vectors_0 = vectors[:-t:step] * mask[:-t:step]  # dipole(t=0)
@@ -57,7 +57,7 @@ def calc_vector_autocorrelation(
             dot_products = np.sum(
                 _vectors_0 * _vectors_t, axis=2
             )  # Shape: ((num_timesteps - t)//step, num_molecules)
-            n_selected_vectors = np.sum(mask[:-t:step] * mask[t::step])
+            n_selected_vectors = np.count_nonzero(mask[:-t:step] * mask[t::step])
 
         # Average over molecules and time origins
         acf[i] = np.sum(dot_products) / n_selected_vectors
