@@ -433,7 +433,7 @@ class WaterAnalysis(AnalysisBase):
         Calculate the velocity autocorrelation function
         """
         mask_lo, mask_hi = utils.get_region_masks(
-            self.results.h_z_water, self.results.z1, self.results.z2, interval
+            self.results.h_z_pos, self.results.z1, self.results.z2, interval
         )
         return dynamics.calc_vector_autocorrelation(
             max_tau=max_tau,
