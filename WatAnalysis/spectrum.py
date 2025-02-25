@@ -8,6 +8,7 @@ from MDAnalysis import Universe
 
 from .multitrajbase import MultiTrajsAnalysisBase
 from . import utils
+from .dynamics import calc_vector_autocorrelation
 
 
 def calc_full_vacf(velocities: np.ndarray) -> np.ndarray:
@@ -79,7 +80,7 @@ class InterfaceVelocityACF(MultiTrajsAnalysisBase):
         self.max_tau = max_tau
         self.d_tau = d_tau
         self.tau_list = np.arange(0, max_tau + d_tau, d_tau, dtype=int)
-        
+
         if interval is not None:
             assert len(interval) == 2
             assert interval[1] > interval[0]
@@ -107,7 +108,9 @@ class InterfaceVelocityACF(MultiTrajsAnalysisBase):
     def _prepare(self):
         self._vacf = np.full([len(self.tau_list), self.n_frames], np.nan, np.float64)
 
-        self._oxygen_mask = np.zeros([self.max_tau + 1, len(self.oxygen_ag)], dtype=bool)
+        self._oxygen_mask = np.zeros(
+            [self.max_tau + 1, len(self.oxygen_ag)], dtype=bool
+        )
         self._hydrogen_velocities = np.zeros(
             [self.max_tau + 1, len(self.hydrogen_vel_ag), 3]
         )
@@ -161,14 +164,161 @@ class InterfaceVelocityACF(MultiTrajsAnalysisBase):
                 old_mask = self._oxygen_mask[end_idx]
                 # mask for oxygen, the hydrogens attached to which are used to calculate VACF
                 mask_vacf = mask & old_mask
-                sel_hydrogen_ids = []
-                for ii_oxygen in np.where(mask_vacf)[0]:
-                    sel_hydrogen_ids.append(self.water_dict[ii_oxygen])
-                sel_hydrogen_ids = np.concatenate(sel_hydrogen_ids)
+                sel_hydrogen_ids = np.concatenate(
+                    [self.water_dict[ii_oxygen] for ii_oxygen in np.where(mask_vacf)[0]]
+                )
                 self._vacf[ii, self._frame_index] = np.mean(
-                    np.sum(velocities_hydrogen[sel_hydrogen_ids]
-                    * self._hydrogen_velocities[end_idx][sel_hydrogen_ids], axis=-1)
+                    np.sum(
+                        velocities_hydrogen[sel_hydrogen_ids]
+                        * self._hydrogen_velocities[end_idx][sel_hydrogen_ids],
+                        axis=-1,
+                    )
                 )
 
     def _conclude(self):
         self.results.vacf = [np.mean(vacf[~np.isnan(vacf)]) for vacf in self._vacf]
+
+
+class InterfaceVelocityACFNew(MultiTrajsAnalysisBase):
+    """
+    Compute velocity autocorrelation function (VACF) of hydrogens near interfaces.
+
+    Parameters
+    ----------
+    universe_pos : MDAnalysis.Universe
+        Universe object containing position information
+    universe_vel : MDAnalysis.Universe
+        Universe object containing velocity information
+    surf_ids : array-like
+        Atom indices defining the two interfaces
+    max_tau : int
+        Maximum time lag for VACF calculation
+    d_tau : int
+        Time lag increment for VACF calculation
+    interval : list of float, optional
+        Distance range from interfaces to consider [lower, upper]
+    **kwargs : dict
+        Additional keyword arguments
+
+    Attributes
+    ----------
+    results.vacf : numpy.ndarray
+        Computed velocity autocorrelation function
+    """
+
+    def __init__(
+        self,
+        universe_pos: Universe,
+        universe_vel: Universe,
+        surf_ids: Union[List, np.ndarray] = None,
+        max_tau: int = None,
+        d_tau: int = None,
+        step: int = 1,
+        interval: Optional[List[float]] = None,
+        **kwargs,
+    ):
+        self.universe_pos = universe_pos
+        self.universe_vel = universe_vel
+
+        self.surf_ids = surf_ids
+
+        assert d_tau > 0
+        assert max_tau >= d_tau
+        self.max_tau = max_tau
+        self.d_tau = d_tau
+        self.step = step
+        self.tau_list = None
+        self.n_frames = len(universe_pos.trajectory)
+
+        if interval is not None:
+            assert len(interval) == 2
+            assert interval[1] > interval[0]
+        self.interval = interval
+        self.axis = kwargs.pop("axis", 2)
+        self.oxygen_ag = self.universe_pos.select_atoms(
+            kwargs.pop("oxygen_sel", "name O")
+        )
+        sel_kw = kwargs.pop("hydrogen_sel", "name H")
+        self.hydrogen_vel_ag = self.universe_vel.select_atoms(sel_kw)
+        self.water_dict = utils.identify_water_molecules(
+            self.universe_pos.select_atoms(sel_kw).positions,
+            self.oxygen_ag.positions,
+            self.universe_pos.dimensions,
+            oh_cutoff=kwargs.pop("oh_cutoff", 1.3),
+            ignore_warnings=kwargs.pop("ignore_warnings", False),
+        )
+
+        super().__init__([universe_pos.trajectory, universe_vel.trajectory], **kwargs)
+
+        self._vacf = None
+        self._oxygen_mask = None
+        self._hydrogen_velocities = None
+
+    def _prepare(self):
+        self._oxygen_mask = np.zeros([self.n_frames, len(self.oxygen_ag)], dtype=bool)
+        self._hydrogen_velocities = np.zeros(
+            [self.n_frames, len(self.hydrogen_vel_ag), 3]
+        )
+
+    def _single_frame(self):
+        start_idx = self._frame_index  # % (self.max_tau + 1)
+
+        ts_pos = self._all_ts[0]
+
+        ts_box = ts_pos.dimensions
+        coords = ts_pos.positions
+        coords_oxygen = self.oxygen_ag.positions
+        velocities_hydrogen = self.hydrogen_vel_ag.positions
+
+        # Absolute surface positions
+        surf1_z = coords[self.surf_ids[0], self.axis]
+        surf2_z = coords[self.surf_ids[1], self.axis]
+        box_length = ts_box[self.axis]
+        # Use MIC in case part of the surface crosses the cell boundaries
+        z1 = utils.mic_1d(surf1_z, box_length, ref=surf1_z[0]).mean()
+        z2 = utils.mic_1d(surf2_z, box_length, ref=surf2_z[0]).mean()
+
+        z_hi = utils.mic_1d(
+            z2 - z1,
+            box_length=box_length,
+            ref=box_length / 2,
+        )
+        z_oxygen = utils.mic_1d(
+            coords_oxygen[:, self.axis] - z1,
+            box_length=box_length,
+            ref=box_length / 2,
+        )
+
+        if self.interval is not None:
+            mask_lo = (z_oxygen > self.interval[0]) & (z_oxygen <= self.interval[1])
+            mask_hi = ((z_hi - z_oxygen) > self.interval[0]) & (
+                (z_hi - z_oxygen) <= self.interval[1]
+            )
+            # mask to select water in this frame
+            mask = mask_lo | mask_hi
+        else:
+            mask = np.ones(len(z_oxygen), dtype=bool)
+
+        np.copyto(self._oxygen_mask[start_idx], mask)
+        np.copyto(self._hydrogen_velocities[start_idx], velocities_hydrogen)
+
+    def _conclude(self):
+        mask = np.zeros(self._hydrogen_velocities.shape[:2], dtype=bool)
+
+        for i, mask_ts in enumerate(mask):
+            oxygen_ids = np.nonzero(self._oxygen_mask[i])[0]
+            sel_hydrogen_ids = []
+            for ii in oxygen_ids:
+                sel_hydrogen_ids.append(self.water_dict[ii])
+            sel_hydrogen_ids = np.concatenate(sel_hydrogen_ids)
+            mask_ts[sel_hydrogen_ids] = True
+
+        tau, cv = calc_vector_autocorrelation(
+            max_tau=self.max_tau,
+            delta_tau=self.d_tau,
+            step=self.step,
+            vectors=self._hydrogen_velocities,
+            mask=mask,
+        )
+        self.tau_list = tau
+        self.results.vacf = cv
