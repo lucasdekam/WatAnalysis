@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-from typing import Tuple, List
+from typing import Tuple, List, Dict
 
 import numpy as np
 from ase import Atoms
 from ase.geometry import get_layers
 from scipy import constants
-from MDAnalysis.lib.distances import minimize_vectors
+from MDAnalysis.lib.distances import distance_array
 
 
 def get_cum_ave(data):
@@ -104,6 +104,54 @@ def mic_1d(x: np.ndarray, box_length: float, ref: float = 0.0) -> np.ndarray:
     _x = x - ref
     _x = _x - np.round(_x / box_length) * box_length
     return _x + ref
+
+
+def identify_water_molecules(
+    h_positions: np.ndarray,
+    o_positions: np.ndarray,
+    box: np.ndarray,
+    oh_cutoff: float,
+    ignore_warnings: bool = False,
+) -> Dict[int, List[int]]:
+    """
+    Identify water molecules based on proximity of hydrogen and oxygen atoms.
+
+    Parameters
+    ----------
+    h_positions : np.ndarray
+        Positions of hydrogen atoms.
+    o_positions : np.ndarray
+        Positions of oxygen atoms.
+    box : np.ndarray
+        Simulation cell defining periodic boundaries.
+    oh_cutoff : float
+        Maximum O-H distance to consider as a bond.
+    ignore_warnings : bool
+        If True, ignore warnings about non-water species
+
+    Returns
+    -------
+    Dict[int, List[int]]
+        Dictionary mapping oxygen atom indices to lists of two bonded hydrogen atom indices.
+    """
+    water_dict = {}
+
+    all_distances = np.zeros((o_positions.shape[0], h_positions.shape[0]))
+    distance_array(o_positions, h_positions, result=all_distances, box=box)
+    saved_h_ids = []
+    for ii, ds in enumerate(all_distances):
+        mask = ds < oh_cutoff
+        if np.sum(mask) != 2:
+            if not ignore_warnings:
+                raise Warning(
+                    f"Oxygen atom {ii} has {np.sum(mask)} hydrogen atoms within {oh_cutoff} Å."
+                )
+            continue
+        water_dict[ii] = np.where(mask)[0].tolist()
+        saved_h_ids.append(water_dict[ii])
+    saved_h_ids = np.concatenate(saved_h_ids)
+    assert np.unique(saved_h_ids).shape[0] == saved_h_ids.shape[0]
+    return water_dict
 
 
 def exponential_moving_average(data, alpha=0.1):

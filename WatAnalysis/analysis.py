@@ -77,7 +77,7 @@ class WaterAnalysis(AnalysisBase):
         self.dz = kwargs.get("dz", 0.1)
         self.save_velocities = kwargs.get("save_velocities", False)
 
-        self.water_dict = structure.identify_water_molecules(
+        self.water_dict = utils.identify_water_molecules(
             self.hydrogen_ag.positions,
             self.oxygen_ag.positions,
             self.universe.dimensions,
