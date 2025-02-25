@@ -50,9 +50,6 @@ class WaterAnalysis(AnalysisBase):
             Cutoff distance for identifying water molecules in Angstroms (default is 1.3).
         - ignore_warnings : bool, optional.
             If True, ignore warnings about non-water species (default is False).
-        - save_velocities : bool, optional.
-            If True, save the velocities of hydrogen atoms in each timestep for the calculation
-            of the vibrational spectrum (default is False).
 
     Methods
     -------
@@ -94,8 +91,6 @@ class WaterAnalysis(AnalysisBase):
         self.results.z2 = None
         self.results.cross_area = None
         self.results.dipoles = None
-        self.results.h_velocities = None
-        self.results.h_z_pos = None
 
     def _prepare(self):
         # Initialize empty arrays
@@ -105,12 +100,6 @@ class WaterAnalysis(AnalysisBase):
         self.results.z2 = np.zeros(self.n_frames)
         self.results.dipoles = np.zeros((self.n_frames, self.oxygen_ag.n_atoms, 3))
         self.results.cross_area = 0.0
-
-        if self.save_velocities:
-            self.results.h_velocities = np.zeros(
-                (self.n_frames, self.hydrogen_ag.n_atoms, 3)
-            )
-            self.results.h_z_pos = np.zeros((self.n_frames, self.hydrogen_ag.n_atoms))
 
     def _single_frame(self):
         ts_box = self._ts.dimensions
@@ -149,17 +138,6 @@ class WaterAnalysis(AnalysisBase):
         cos_theta = dipole[:, self.axis]
         np.copyto(self.results.cos_theta[self._frame_index], cos_theta)
 
-        # Save velocities
-        if self.save_velocities:
-            np.copyto(
-                self.results.h_velocities[self._frame_index],
-                self.hydrogen_ag.velocities,
-            )
-            np.copyto(
-                self.results.h_z_pos[self._frame_index],
-                coords_hydrogen[:, self.axis],
-            )
-
     def _conclude(self):
         # Average surface area
         self.results.cross_area /= self.n_frames
@@ -181,13 +159,6 @@ class WaterAnalysis(AnalysisBase):
             box_length=box_length,
             ref=box_length / 2,
         )
-
-        if self.save_velocities:
-            self.results.h_z_pos = utils.mic_1d(
-                self.results.h_z_pos - self.results.z1[:, np.newaxis],
-                box_length=box_length,
-                ref=box_length / 2,
-            )
 
         # Update attributes to the final relative coordinates
         self.results.z1 = z1
@@ -419,26 +390,5 @@ class WaterAnalysis(AnalysisBase):
             max_tau=max_tau,
             delta_tau=delta_tau,
             step=step,
-            mask=mask_lo | mask_hi,
-        )
-
-    def velocity_autocorrelation(
-        self,
-        max_tau: int,
-        delta_tau: int,
-        interval: Tuple[float, float],
-        step: int = 1,
-    ):
-        """
-        Calculate the velocity autocorrelation function
-        """
-        mask_lo, mask_hi = utils.get_region_masks(
-            self.results.h_z_pos, self.results.z1, self.results.z2, interval
-        )
-        return dynamics.calc_vector_autocorrelation(
-            max_tau=max_tau,
-            delta_tau=delta_tau,
-            step=step,
-            vectors=self.results.h_velocities,
             mask=mask_lo | mask_hi,
         )
