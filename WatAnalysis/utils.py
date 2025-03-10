@@ -268,6 +268,7 @@ def guess_surface_indices(
         - Second list contains indices of atoms on the surface with down-pointing normal vector
     """
     atoms = atoms.copy()
+    atoms.wrap()
 
     def _crosses_z_boundary(slab: Atoms):
         coords_z = slab.get_positions()[:, 2]
