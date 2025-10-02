@@ -8,25 +8,6 @@ from MDAnalysis.lib.distances import distance_array
 from scipy import constants
 
 
-def get_cum_ave(data):
-    """
-    Calculate the cumulative average of a data array.
-
-    Parameters
-    ----------
-    data : np.ndarray
-        Array of data points.
-
-    Returns
-    -------
-    np.ndarray
-        Array of cumulative averages.
-    """
-    cum_sum = data.cumsum()
-    cum_ave = cum_sum / (np.arange(len(data)) + 1)
-    return cum_ave
-
-
 def bin_edges_to_grid(bin_edges: np.ndarray):
     """
     Convert bin edges to grid points at bin centers.
