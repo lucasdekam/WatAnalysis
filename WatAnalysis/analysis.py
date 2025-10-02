@@ -98,6 +98,13 @@ class WaterAnalysis(AnalysisBase):
             ignore_warnings=kwargs.get("ignore_warnings", False),
         )
 
+        # Extra species selections
+        species_sels = kwargs.get("species_sels", [])
+        self.species_ags = {
+            sel: self.universe.select_atoms(sel) for sel in species_sels
+        }
+
+        self.results.z_species = {}
         self.results.z_water = None
         self.results.cos_theta = None
         self.results.z1 = None
@@ -113,6 +120,10 @@ class WaterAnalysis(AnalysisBase):
         self.results.z2 = np.zeros(self.n_frames)
         self.results.dipoles = np.zeros((self.n_frames, self.oxygen_ag.n_atoms, 3))
         self.results.cross_area = 0.0
+
+        # Allocate storage for species positions
+        for sel, ag in self.species_ags.items():
+            self.results.z_species[sel] = np.zeros((self.n_frames, ag.n_atoms))
 
     def _single_frame(self):
         ts_box = self._ts.dimensions
@@ -137,6 +148,13 @@ class WaterAnalysis(AnalysisBase):
 
         # Save oxygen locations for water density analysis
         np.copyto(self.results.z_water[self._frame_index], coords_oxygen[:, self.axis])
+
+        # Save species positions
+        for sel, ag in self.species_ags.items():
+            np.copyto(
+                self.results.z_species[sel][self._frame_index],
+                ag.positions[:, self.axis],
+            )
 
         # Calculate dipoles and project on self.axis
         dipole = waterstructure.calc_water_dipoles(
@@ -177,6 +195,14 @@ class WaterAnalysis(AnalysisBase):
         self.results.z1 = z1
         self.results.z2 = z2
         self.results.z_water = z_water
+
+        # Shift species positions relative to z1
+        for sel, arr in self.results.z_species.items():
+            self.results.z_species[sel] = utils.mic_1d(
+                arr - self.results.z1[:, np.newaxis],
+                box_length=box_length,
+                ref=box_length / 2,
+            )
 
     def density_profile(
         self,
@@ -455,4 +481,46 @@ class WaterAnalysis(AnalysisBase):
             delta_tau=delta_tau,
             step=step,
             mask=mask_lo | mask_hi,
+        )
+
+    def species_density_profile(
+        self,
+        sel: str,
+        sym: bool = False,
+        dz: Optional[float] = None,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Calculate the density profile of a selected species.
+
+        Parameters
+        ----------
+        sel : str
+            Selection string used when initializing (must be in species_sels).
+        sym : bool, optional
+            If True, symmetrize the density about the center.
+        dz : float, optional
+            Bin width (default: self.dz).
+
+        Returns
+        -------
+        z : ndarray
+            Bin centers along the axis.
+        rho : ndarray
+            Density profile for the species.
+        """
+        if sel not in self.results.z_species:
+            raise ValueError(
+                f"Selection '{sel}' not tracked. Available: {list(self.results.z_species)}"
+            )
+
+        if dz is None:
+            dz = self.dz
+
+        return waterstructure.calc_density_profile(
+            (self.results.z1.mean(), self.results.z2.mean()),
+            self.results.z_species[sel].flatten(),
+            cross_area=self.results.cross_area,
+            n_frames=self.n_frames,
+            dz=dz,
+            sym=sym,
         )
