@@ -39,6 +39,8 @@ class WaterAnalysis(AnalysisBase):
             Selection string for oxygen atoms (default is "name O").
         - hydrogen_sel : str, optional.
             Selection string for hydrogen atoms (default is "name H").
+        - species_sels : list[str], optional.
+            Selection strings for additional (dissolved) atoms to calculate a density profile for.
         - min_vector : bool, optional.
             If True, uses minimum image convention for vectors (default is True).
             Can be disabled for unwrapped trajectories to compute faster.
@@ -68,6 +70,10 @@ class WaterAnalysis(AnalysisBase):
         Calculate the water dipole autocorrelation.
     survival_probability(max_tau, delta_tau, interval, step=1)
         Calculate the water survival probability.
+    species_density_profile(sel, sym, dz)
+        Calculate density profile for specified (dissolved) species in the simulation.
+    total_dipole(axis)
+        Calculate total dipole moment along one axis for each trajectory frame.
     """
 
     def __init__(
@@ -191,18 +197,20 @@ class WaterAnalysis(AnalysisBase):
             ref=box_length / 2,
         )
 
-        # Update attributes to the final relative coordinates
-        self.results.z1 = z1
-        self.results.z2 = z2
-        self.results.z_water = z_water
-
         # Shift species positions relative to z1
+        z_species = {}
         for sel, arr in self.results.z_species.items():
-            self.results.z_species[sel] = utils.mic_1d(
+            z_species[sel] = utils.mic_1d(
                 arr - self.results.z1[:, np.newaxis],
                 box_length=box_length,
                 ref=box_length / 2,
             )
+
+        # Update attributes to the final relative coordinates
+        self.results.z1 = z1
+        self.results.z2 = z2
+        self.results.z_water = z_water
+        self.results.z_species = z_species
 
     def density_profile(
         self,
@@ -524,3 +532,19 @@ class WaterAnalysis(AnalysisBase):
             dz=dz,
             sym=sym,
         )
+
+    def total_dipole(self, axis=2) -> np.ndarray:
+        """
+        Calculate the total dipole along one axis for each trajectory frame.
+
+        Parameters
+        ----------
+        axis : int
+            Axis (0: x, 1: y, 2: z) to calculate the dipole along. Default: z
+
+        Returns
+        -------
+        dipoles: ndarray of shape (n_frames, )
+            Total dipole for each trajectory frame.
+        """
+        return self.results.dipoles[:, :, axis].sum(axis=1)
