@@ -4,9 +4,10 @@ Functionality for computing time-averaged water structure properties from
 molecular dynamics trajectories of water at interfaces
 """
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Literal
 
 import numpy as np
+import scipy.constants as C
 from MDAnalysis.lib.distances import minimize_vectors
 
 from . import utils
@@ -107,6 +108,97 @@ def calc_density_profile(
     if sym:
         rho = (rho[::-1] + rho) / 2
     return z, rho
+
+
+def calc_density_profile_reweighting(
+    z: np.ndarray,
+    z_surf: Tuple[float, float],
+    cross_area: float,
+    e0: np.ndarray,
+    enew: np.ndarray,
+    dz: float = 0.1,
+    sym: bool = False,
+    mol_mass: float = 18.015,
+    method: Literal["cea", "boltzmann"] = "cea",
+    temperature: float = 300.0,
+):
+    """
+    Calculate density profile using either direct Boltzmann or Cumulant
+    Expansion Approximation (CEA) reweighting methods.
+
+    Parameters
+    ----------
+    z : np.ndarray
+        Atomic z-coordinates with shape (n_frames, n_atoms).
+    z_surf : Tuple[float, float]
+        Range (min, max) for histogram binning in z-direction.
+    cross_area : float
+        Cross-sectional area for density calculation.
+    e0 : np.ndarray
+        Energies from original simulation with shape (n_frames,).
+    enew : np.ndarray
+        Energies from potential by which reweighting is done with shape (n_frames,).
+    dz : float, optional
+        Bin width for histogram in z-direction. Default is 0.1.
+    sym : bool, optional
+        If True, symmetrize the density profile. Default is False.
+    mol_mass : float, optional
+        Molecular mass in g/mol. Default is 18.015 (water).
+    method : Literal["cea", "boltzmann"], optional
+        Reweighting method: "cea" for Cumulant Expansion Approximation or
+        "boltzmann" for Boltzmann reweighting. Default is "cea".
+    temperature : float, optional
+        Temperature in Kelvin. Default is 300.0.
+
+    Returns
+    -------
+    grid : np.ndarray
+        Grid points corresponding to bin centers with shape (n_bins,).
+    rho_reweighted : np.ndarray
+        Reweighted density profile with shape (n_bins,). Units: g/cm^3
+        or mol/cm^3 if mol_mass=1.
+    """
+    assert e0.shape == enew.shape, "E0 and E_new should have the same shape"
+    assert len(e0) == z.shape[0], "len(E0) should be equal to z.shape[0]"
+
+    beta = C.elementary_charge / (C.Boltzmann * temperature)
+
+    # --- 1. unweighted histogram a_t(b)
+    n_bins = int((z_surf[1] - z_surf[0]) / dz)
+
+    # counts per bin per frame
+    all_counts = []
+    for z_frame in z:  # shape (n_atoms,)
+        counts, bin_edges = np.histogram(z_frame, bins=n_bins, range=z_surf)
+        all_counts.append(counts)
+    a_tb = np.array(all_counts)  # shape (n_frames, n_bins) --> indices (t, b)
+    grid = utils.bin_edges_to_grid(bin_edges)
+
+    # --- 2. averages over frames
+    a_mean = a_tb.mean(axis=0)  # unweighted histogram <a_b>_E0; shape (n_bins,)
+
+    # --- 3. prepare reweighting
+    delta_e = enew - e0
+
+    if method == "boltzmann":
+        weights = np.exp(-beta * delta_e)  # shape (n_frames,)
+        weights /= np.mean(weights)
+        n_reweighted = np.mean(a_tb * weights[:, None], axis=0)
+    elif method == "cea":
+        de_mean = delta_e.mean()  # <(E-E0)>_E0, scalar
+        a_de_mean = (a_tb * delta_e[:, None]).mean(
+            axis=0
+        )  # <a_b(E-E0)>_E0; shape (n_bins,)
+        n_reweighted = a_mean - beta * (a_de_mean - a_mean * de_mean)
+    else:
+        raise ValueError("method must be 'boltzmann' or 'cea'.")
+
+    grid_volume = np.diff(bin_edges) * cross_area
+    rho_reweighted = utils.calc_density(n_reweighted, grid_volume, mol_mass)
+    if sym:
+        rho_reweighted = (rho_reweighted[::-1] + rho_reweighted) / 2
+
+    return grid, rho_reweighted
 
 
 def calc_orientation_profile(
