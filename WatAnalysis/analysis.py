@@ -531,6 +531,7 @@ class WaterAnalysis(AnalysisBase):
             n_frames=self.n_frames,
             dz=dz,
             sym=sym,
+            mol_mass=1,
         )
 
     def total_dipole(self, axis=2) -> np.ndarray:
