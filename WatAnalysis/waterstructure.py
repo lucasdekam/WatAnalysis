@@ -59,55 +59,75 @@ def calc_density_profile(
     z_surf: Tuple[float, float],
     z_water: np.ndarray,
     cross_area: float,
-    n_frames: int,
     dz: float = 0.1,
     sym: bool = False,
     mol_mass: float = 18.015,
-) -> Tuple[np.ndarray, np.ndarray]:
+    n_blocks: int = 1,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
-    Calculate the density profile of water along the z-axis.
+    Calculate the density profile of water along the z-axis using block averaging.
 
     Parameters
     ----------
     z_surf : Tuple[float, float]
         The positions of the left and right surfaces.
     z_water : np.ndarray
-        The z-coordinates of water molecules.
+        The z-coordinates of water molecules in the shape (n_frames, n_atoms).
     cross_area : float
         The cross-sectional area perpendicular to the z-axis.
-    n_frames : int
-        Number of trajectory frames from which water molecules were counted.
     dz : float, optional
         The bin width for the histogram (default is 0.1).
     sym : bool, optional
         If True, symmetrize the density profile (default is False).
     mol_mass : float
         Molecular mass of the atoms in g/mol
+    n_blocks : int, optional
+        Number of blocks for averaging (default is 1).
 
     Returns
     -------
     z : np.ndarray
         The spatial coordinates along the z-axis.
-    rho : np.ndarray
-        The density values corresponding to the z-coordinates.
+    rho_mean : np.ndarray
+        The mean density values corresponding to the z-coordinates.
+    rho_stderr : np.ndarray
+        The standard error of the density values.
     """
-    # Make histogram
-    counts, bin_edges = np.histogram(
-        z_water.flatten(),
-        bins=int((z_surf[1] - z_surf[0]) / dz),
-        range=z_surf,
-    )
+    n_frames = z_water.shape[0]
+    block_size = n_frames // n_blocks
+    n_bins = int((z_surf[1] - z_surf[0]) / dz)
 
-    # Spatial coordinates
+    rho_blocks = []
+
+    # Calculate density for each block
+    for i in range(n_blocks):
+        start_idx = i * block_size
+        end_idx = (i + 1) * block_size if i < n_blocks - 1 else n_frames
+        z_block = z_water[start_idx:end_idx]
+
+        counts, bin_edges = np.histogram(
+            z_block,
+            bins=n_bins,
+            range=z_surf,
+        )
+
+        n_water = counts / (end_idx - start_idx)
+        grid_volume = np.diff(bin_edges) * cross_area
+        rho = utils.calc_density(n_water, grid_volume, mol_mass)
+
+        if sym:
+            rho = (rho[::-1] + rho) / 2
+
+        rho_blocks.append(rho)
+
     z = utils.bin_edges_to_grid(bin_edges)
+    rho_blocks = np.array(rho_blocks)
+    rho_mean = rho_blocks.mean(axis=0)
+    rho_stderr = np.zeros(rho_mean.shape)
+    if n_blocks > 1:
+        rho_stderr = rho_blocks.std(axis=0, ddof=1) / np.sqrt(n_blocks)
 
-    # Density values
-    n_water = counts / n_frames
-    grid_volume = np.diff(bin_edges) * cross_area
-    rho = utils.calc_density(n_water, grid_volume, mol_mass)
-    if sym:
-        rho = (rho[::-1] + rho) / 2
-    return z, rho
+    return z, rho_mean, rho_stderr
 
 
 def calc_density_profile_reweighting(
@@ -208,50 +228,77 @@ def calc_orientation_profile(
     cross_area: float,
     dz: float,
     sym: bool = False,
-) -> Tuple[np.ndarray, np.ndarray]:
+    n_blocks: int = 1,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
-    Calculate the orientation profile of water molecules.
+    Calculate the orientation profile of water molecules using block averaging.
 
     Parameters
     ----------
     z_surf : Tuple[float, float]
         The positions of the left and right surface.
     z_water : np.ndarray
-        The z-coordinates of water molecules.
+        The z-coordinates of water molecules with shape (n_frames, n_atoms).
     cos_theta : np.ndarray
-        The cosine of the angle between the water molecule dipole and the z-axis.
+        The cosine of the angle between the water molecule dipole and the z-axis; shape (n_frames, n_atoms)
     cross_area : float
         The cross-sectional area of the system.
     dz : float
         The bin width in the z-direction.
     sym : bool, optional
         If True, symmetrize the orientation profile (default is False).
+    n_blocks : int, optional
+        Number of blocks for averaging (default is 1).
 
     Returns
     -------
     z : np.ndarray
         The z-coordinates of the grid points.
-    rho_cos_theta : np.ndarray
-        The orientation profile of water molecules.
+    rho_cos_theta_mean : np.ndarray
+        The mean orientation profile of water molecules.
+    rho_cos_theta_stderr : np.ndarray
+        The standard error of the orientation profile.
     """
-    # Only include non-nan dipole values (only O with 2 H)
-    valid = ~np.isnan(cos_theta.flatten())
+    n_frames = z_water.shape[0]
+    block_size = n_frames // n_blocks
+    n_bins = int((z_surf[1] - z_surf[0]) / dz)
 
-    counts, bin_edges = np.histogram(
-        z_water.flatten()[valid],
-        bins=int((z_surf[1] - z_surf[0]) / dz),
-        range=z_surf,
-        weights=cos_theta.flatten()[valid],
-    )
+    rho_blocks = []
+
+    # Calculate orientation profile for each block
+    for i in range(n_blocks):
+        start_idx = i * block_size
+        end_idx = (i + 1) * block_size if i < n_blocks - 1 else n_frames
+        z_block = z_water[start_idx:end_idx]
+        cos_theta_block = cos_theta[start_idx:end_idx]
+
+        # Only include non-nan dipole values
+        valid = ~np.isnan(cos_theta_block.flatten())
+
+        counts, bin_edges = np.histogram(
+            z_block.flatten()[valid],
+            bins=n_bins,
+            range=z_surf,
+            weights=cos_theta_block.flatten()[valid],
+        )
+
+        n_water = counts / (end_idx - start_idx)
+        grid_volume = np.diff(bin_edges) * cross_area
+        rho_cos_theta = utils.calc_water_density(n_water, grid_volume)
+
+        if sym:
+            rho_cos_theta = (rho_cos_theta - rho_cos_theta[::-1]) / 2
+
+        rho_blocks.append(rho_cos_theta)
 
     z = utils.bin_edges_to_grid(bin_edges)
-    n_water = counts / z_water.shape[0]
-    grid_volume = np.diff(bin_edges) * cross_area
-    rho_cos_theta = utils.calc_water_density(n_water, grid_volume)
+    rho_blocks = np.array(rho_blocks)
+    rho_cos_theta_mean = rho_blocks.mean(axis=0)
+    rho_cos_theta_stderr = np.zeros(rho_cos_theta_mean.shape)
+    if n_blocks > 1:
+        rho_cos_theta_stderr = rho_blocks.std(axis=0, ddof=1) / np.sqrt(n_blocks)
 
-    if sym:
-        rho_cos_theta = (rho_cos_theta - rho_cos_theta[::-1]) / 2
-    return z, rho_cos_theta
+    return z, rho_cos_theta_mean, rho_cos_theta_stderr
 
 
 def calc_costheta_profile(

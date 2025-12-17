@@ -217,6 +217,7 @@ class WaterAnalysis(AnalysisBase):
         only_valid_dipoles: bool = False,
         sym: bool = False,
         dz: Optional[float] = None,
+        n_blocks: int = 1,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Calculate the density profile of water molecules using a histogram.
@@ -232,6 +233,8 @@ class WaterAnalysis(AnalysisBase):
         dz : float, optional
             Bin width for histogram calculations in Angstroms. Must be positive.
             If not provided, defaults to self.dz (which is 0.1 A by default).
+        n_blocks : int, optional
+            Number of blocks for averaging (default is 1).
 
         Returns
         -------
@@ -244,24 +247,28 @@ class WaterAnalysis(AnalysisBase):
         # In this way, the density rho corresponds to the density in the
         # orientation profile rho * <cos theta>
         if only_valid_dipoles:
-            valid = ~np.isnan(self.results.cos_theta.flatten())
+            valid = ~np.isnan(self.results.cos_theta)
         else:
-            valid = np.ones(self.results.z_water.flatten().shape, dtype=bool)
+            valid = np.ones(self.results.z_water.shape, dtype=bool)
 
         if dz is None:
             dz = self.dz
 
         return waterstructure.calc_density_profile(
             (self.results.z1.mean(), self.results.z2.mean()),
-            self.results.z_water.flatten()[valid],
+            self.results.z_water[valid],
             cross_area=self.results.cross_area,
             n_frames=self.n_frames,
             dz=dz,
             sym=sym,
+            n_blocks=n_blocks,
         )
 
     def orientation_profile(
-        self, sym: bool = False, dz: Optional[float] = None
+        self,
+        sym: bool = False,
+        dz: Optional[float] = None,
+        n_blocks: int = 1,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Calculate the orientation profile of water molecules.
@@ -277,6 +284,8 @@ class WaterAnalysis(AnalysisBase):
         dz : float, optional
             Bin width for histogram calculations in Angstroms. Must be positive.
             If not provided, defaults to self.dz (which is 0.1 A by default).
+        n_blocks : int, optional
+            Number of blocks for averaging (default is 1).
 
         Returns
         -------
@@ -295,6 +304,7 @@ class WaterAnalysis(AnalysisBase):
             self.results.cross_area,
             dz,
             sym=sym,
+            n_blocks=n_blocks,
         )
 
     def costheta_profile(
@@ -496,6 +506,7 @@ class WaterAnalysis(AnalysisBase):
         sel: str,
         sym: bool = False,
         dz: Optional[float] = None,
+        n_blocks: int = 1,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Calculate the density profile of a selected species.
@@ -508,6 +519,8 @@ class WaterAnalysis(AnalysisBase):
             If True, symmetrize the density about the center.
         dz : float, optional
             Bin width (default: self.dz).
+        n_blocks : int, optional
+            Number of blocks for averaging (default is 1).
 
         Returns
         -------
@@ -526,12 +539,12 @@ class WaterAnalysis(AnalysisBase):
 
         return waterstructure.calc_density_profile(
             (self.results.z1.mean(), self.results.z2.mean()),
-            self.results.z_species[sel].flatten(),
+            self.results.z_species[sel],
             cross_area=self.results.cross_area,
-            n_frames=self.n_frames,
             dz=dz,
             sym=sym,
             mol_mass=1,
+            n_blocks=n_blocks,
         )
 
     def total_dipole(self, axis=2) -> np.ndarray:
