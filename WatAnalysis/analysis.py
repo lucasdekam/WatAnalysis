@@ -258,7 +258,6 @@ class WaterAnalysis(AnalysisBase):
             (self.results.z1.mean(), self.results.z2.mean()),
             self.results.z_water[valid],
             cross_area=self.results.cross_area,
-            n_frames=self.n_frames,
             dz=dz,
             sym=sym,
             n_blocks=n_blocks,
