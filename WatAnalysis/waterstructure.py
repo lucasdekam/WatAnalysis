@@ -93,6 +93,9 @@ def calc_density_profile(
     rho_stderr : np.ndarray
         The standard error of the density values.
     """
+    assert (
+        z_water.ndim == 2
+    ), "z_water must be a 2D array with shape (n_frames, n_atoms)"
     n_frames = z_water.shape[0]
     block_size = n_frames // n_blocks
     n_bins = int((z_surf[1] - z_surf[0]) / dz)

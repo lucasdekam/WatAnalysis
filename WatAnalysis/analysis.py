@@ -248,15 +248,17 @@ class WaterAnalysis(AnalysisBase):
         # orientation profile rho * <cos theta>
         if only_valid_dipoles:
             valid = ~np.isnan(self.results.cos_theta)
+            masked_z_water = np.where(valid, self.results.z_water, np.nan)
         else:
             valid = np.ones(self.results.z_water.shape, dtype=bool)
+            masked_z_water = self.results.z_water
 
         if dz is None:
             dz = self.dz
 
         return waterstructure.calc_density_profile(
             (self.results.z1.mean(), self.results.z2.mean()),
-            self.results.z_water[valid],
+            masked_z_water,
             cross_area=self.results.cross_area,
             dz=dz,
             sym=sym,
