@@ -71,44 +71,45 @@ def identify_water_molecules(
     ignore_warnings: bool = False,
 ) -> Dict[int, List[int]]:
     """
-    Identify water molecules based on proximity of hydrogen and oxygen atoms.
-
-    Parameters
-    ----------
-    h_positions : np.ndarray
-        Positions of hydrogen atoms.
-    o_positions : np.ndarray
-        Positions of oxygen atoms.
-    box : np.ndarray
-        Simulation cell defining periodic boundaries.
-    oh_cutoff : float
-        Maximum O-H distance to consider as a bond.
-    ignore_warnings : bool
-        If True, ignore warnings about non-water species
+    Identify water and hydronium species by assigning each H to its nearest O.
 
     Returns
     -------
     Dict[int, List[int]]
-        Dictionary mapping oxygen atom indices to lists of two bonded hydrogen atom indices.
+        Dictionary mapping oxygen atom indices to lists of bonded hydrogen atom indices.
+        e.g., {O_idx: [H1, H2]} for water, {O_idx: [H1, H2, H3]} for hydronium.
     """
-    water_dict = {}
+    # Initialize dictionary for all Oxygen indices
+    species_dict = {i: [] for i in range(len(o_positions))}
 
-    all_distances = np.zeros((o_positions.shape[0], h_positions.shape[0]))
-    distance_array(o_positions, h_positions, result=all_distances, box=box)
-    saved_h_ids = []
-    for ii, ds in enumerate(all_distances):
-        mask = ds < oh_cutoff
-        if np.sum(mask) != 2:
+    # Calculate all-to-all distances considering Periodic Boundary Conditions (PBC)
+    # Assuming distance_array handles PBC as in your original snippet
+    all_distances = np.zeros((h_positions.shape[0], o_positions.shape[0]))
+    distance_array(h_positions, o_positions, result=all_distances, box=box)
+
+    for h_idx, distances in enumerate(all_distances):
+        # Find the index of the closest Oxygen
+        o_idx = np.argmin(distances)
+        min_dist = distances[o_idx]
+
+        # Check if the closest O is within a reasonable bonding cutoff
+        if min_dist <= oh_cutoff:
+            species_dict[o_idx].append(h_idx)
+        else:
             if not ignore_warnings:
                 warnings.warn(
-                    f"Oxygen atom {ii} has {np.sum(mask)} hydrogen atoms within {oh_cutoff} Å. Ignoring."
+                    f"Hydrogen {h_idx} is orphaned (nearest O is {min_dist:.2f} A away)."
                 )
-                continue
-        water_dict[ii] = np.where(mask)[0].tolist()
-        saved_h_ids.append(water_dict[ii])
-    saved_h_ids = np.concatenate(saved_h_ids)
-    assert np.unique(saved_h_ids).shape[0] == saved_h_ids.shape[0]
-    return water_dict
+
+    if not ignore_warnings:
+        not_water = {k: v for k, v in species_dict.items() if len(v) != 2}
+        for k, v in not_water:
+            warnings.warn(
+                f"Oxygen {k} has {len(v)} hydrogens near it (not two). Ignoring."
+            )
+        species_dict = {k: v for k, v in species_dict.items() if len(v) == 2}
+
+    return species_dict
 
 
 def mic_1d(x: np.ndarray, box_length: float, ref: float = 0.0) -> np.ndarray:
