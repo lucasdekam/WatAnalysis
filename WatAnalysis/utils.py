@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 from typing import Dict, List, Optional, Tuple
-
+import warnings
 import numpy as np
 from ase import Atoms
 from ase.geometry import get_layers
@@ -100,10 +100,10 @@ def identify_water_molecules(
         mask = ds < oh_cutoff
         if np.sum(mask) != 2:
             if not ignore_warnings:
-                raise Warning(
-                    f"Oxygen atom {ii} has {np.sum(mask)} hydrogen atoms within {oh_cutoff} Å."
+                warnings.warn(
+                    f"Oxygen atom {ii} has {np.sum(mask)} hydrogen atoms within {oh_cutoff} Å. Ignoring."
                 )
-            continue
+                continue
         water_dict[ii] = np.where(mask)[0].tolist()
         saved_h_ids.append(water_dict[ii])
     saved_h_ids = np.concatenate(saved_h_ids)
