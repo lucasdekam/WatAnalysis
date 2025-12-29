@@ -103,7 +103,7 @@ def identify_water_molecules(
 
     if not ignore_warnings:
         not_water = {k: v for k, v in species_dict.items() if len(v) != 2}
-        for k, v in not_water:
+        for k, v in not_water.items():
             warnings.warn(
                 f"Oxygen {k} has {len(v)} hydrogens near it (not two). Ignoring."
             )
