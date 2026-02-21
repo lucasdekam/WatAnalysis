@@ -20,6 +20,7 @@ def process_trajectory(
     survival_params: tuple[int, int, int],
     ion_species: str | None,
     output: str,
+    electrode: str,
 ):
     """Run density + orientation + dynamics workflow for one trajectory."""
 
@@ -39,7 +40,7 @@ def process_trajectory(
     symbol_map = {symbol: i + 1 for i, symbol in enumerate(np.unique(atoms.symbols))}
 
     # Surface detection
-    surf_ids = guess_surface_indices(atoms=atoms, element="Au", tolerance=1.4)
+    surf_ids = guess_surface_indices(atoms=atoms, element=electrode, tolerance=1.4)
 
     # Build MDAnalysis universe
     u = mda.Universe(
@@ -204,6 +205,13 @@ def process_trajectory(
     help="Output NPZ filename",
     show_default=True,
 )
+@click.option(
+    "--electrode",
+    default="Au",
+    type=str,
+    help="Electrode element symbol",
+    show_default=True,
+)
 def main(
     pattern,
     nprocs,
@@ -217,6 +225,7 @@ def main(
     survival_step,
     ion,
     output,
+    electrode,
 ):
     """
     WatAnalysis CLI
@@ -253,6 +262,7 @@ def main(
                         survival_params,
                         ion,
                         output,
+                        electrode,
                     )
                     for tf in traj_files
                 ],
