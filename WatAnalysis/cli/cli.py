@@ -19,6 +19,7 @@ def process_trajectory(
     dipole_params: tuple[int, int, int],
     survival_params: tuple[int, int, int],
     ion_species: str | None,
+    output: str,
 ):
     """Run density + orientation + dynamics workflow for one trajectory."""
 
@@ -113,7 +114,7 @@ def process_trajectory(
     results["total_dipole"] = task.total_dipole()
 
     # Save
-    outfile = subdir / "analysis_results.npz"
+    outfile = subdir / output
     np.savez(outfile, **results)
     click.echo(f"[INFO] Saved results to {outfile}")
 
@@ -196,6 +197,13 @@ def process_trajectory(
     help="Optional ionic species (e.g. Na).",
     show_default=True,
 )
+@click.option(
+    "--output",
+    default="watanalysis_results.npz",
+    type=str,
+    help="Output NPZ filename",
+    show_default=True,
+)
 def main(
     pattern,
     nprocs,
@@ -208,6 +216,7 @@ def main(
     survival_delta_tau,
     survival_step,
     ion,
+    output,
 ):
     """
     WatAnalysis CLI
@@ -243,6 +252,7 @@ def main(
                         dipole_params,
                         survival_params,
                         ion,
+                        output,
                     )
                     for tf in traj_files
                 ],
