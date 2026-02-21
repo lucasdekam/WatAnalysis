@@ -1,50 +1,26 @@
 # WatAnalysis
 
-## Introduction
-
 This is a package for (parallel) analysis of water structures/dynamics at **metal/water interfaces**.
-Some codes here are developed based on [`MDAnalysis`](https://userguide.mdanalysis.org/2.0.0-dev0/index.html) or [`pmda`](https://www.mdanalysis.org/pmda/) package.
 
 ## Installation
-
-This package (in particular the hydrogen bond functionality) requires a custom version of MDAnalysis to select specific interfacial regions.
-Install it before installing WatAnalysis:
-
+To install this fork of WatAnalysis:
 ```bash
-git clone https://github.com/ChiahsinChu/mdanalysis.git -b devel-relprop
-cd mdanalysis
-pip install --upgrade package/
-cd ..
-```
-
-To install WatAnalysis, clone the repository and run the following commands in the repository root:
-
-```bash
-git clone https://github.com/ChiahsinChu/WatAnalysis.git
+git clone https://github.com/lucasdekam/WatAnalysis.git
 cd WatAnalysis
 pip install .
 ```
 
 ## User Guide
+Command-line interface:
 
-1. `waterstructure`: water structure analysis
+```
+watanalysis --help
+```
 
-2. `waterdynamics`: water dynamics analysis
+For example, for a typical gold-water interface:
 
-   This module is built on the basis of `MDAnalysis.analysis.waterdynamics`.
+```
+watanalysis --pattern "./oc25_w_charge/pos_traj.xtc" --nprocs 32 --interface 0 4.5
+```
 
-3. `temp`: instantaneous temperature of selected atoms
-
-## Workflow mode
-
-### Supported functions
-
-- density profile: `DensityAnalysis`
-- dipole angular distribution: `AngularDistribution`
-- hydrogen bond: `HydrogenBondAnalysis`
-- correlation function:
-  - survivial probability: `SurvivalProbability`
-  - flux correlation function: `FluxCorrelationFunction`
-  - water reorientation: `WaterReorientation`
-
-## Developer Guide
+You can also build custom scripts based on WatAnalysis; the CLI script `WatAnalysis/cli/cli.py` serves as an usage example.
