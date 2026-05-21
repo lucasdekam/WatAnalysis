@@ -171,8 +171,9 @@ class WaterAnalysis(AnalysisBase):
             mic=self.min_vector,
         )
         np.copyto(self.results.dipoles[self._frame_index], dipole)
-        cos_theta = dipole[:, self.axis] / np.linalg.norm(
-            dipole, axis=-1, keepdims=True
+        cos_theta = (
+            dipole[:, self.axis].squeeze()
+            / np.linalg.norm(dipole, axis=-1, keepdims=True).squeeze()
         )
         np.copyto(self.results.cos_theta[self._frame_index], cos_theta)
 
