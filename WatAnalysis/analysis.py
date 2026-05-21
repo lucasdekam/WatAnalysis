@@ -170,9 +170,10 @@ class WaterAnalysis(AnalysisBase):
             box=ts_box,
             mic=self.min_vector,
         )
-        dipole /= np.linalg.norm(dipole, axis=-1, keepdims=True)
         np.copyto(self.results.dipoles[self._frame_index], dipole)
-        cos_theta = dipole[:, self.axis]
+        cos_theta = dipole[:, self.axis] / np.linalg.norm(
+            dipole, axis=-1, keepdims=True
+        )
         np.copyto(self.results.cos_theta[self._frame_index], cos_theta)
 
     def _conclude(self):
@@ -560,6 +561,14 @@ class WaterAnalysis(AnalysisBase):
         Returns
         -------
         dipoles: ndarray of shape (n_frames, )
-            Total dipole for each trajectory frame.
+            Total dipole for each trajectory frame in me/Angstrom
+
+        See Parker et al. https://arxiv.org/pdf/2603.04228
         """
-        return self.results.dipoles[:, :, axis].sum(axis=1)
+        return (
+            0.5562
+            / 2
+            * 1000
+            * self.results.dipoles[:, :, axis].sum(axis=1)
+            / self.results.cross_area
+        )
