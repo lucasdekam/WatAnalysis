@@ -552,7 +552,10 @@ class WaterAnalysis(AnalysisBase):
 
     def total_dipole(self, axis=2) -> np.ndarray:
         """
-        Calculate the total dipole along one axis for each trajectory frame.
+        Calculate the snapshot-resolved net orientational moment D_z^(a) for
+        each trajectory frame, i.e. the area-normalized sum of cos(theta_i)
+        over all water molecules i, where cos(theta_i) is the cosine between
+        the water bisector vector and the given axis.
 
         Parameters
         ----------
@@ -562,14 +565,16 @@ class WaterAnalysis(AnalysisBase):
         Returns
         -------
         dipoles: ndarray of shape (n_frames, )
-            Total dipole for each trajectory frame in me/Angstrom
-
-        See Parker et al. https://arxiv.org/pdf/2603.04228
+            Net orientational moment D_z^(a) for each trajectory frame.
         """
-        return (
-            0.5562
-            / 2
-            * 1000
-            * self.results.dipoles[:, :, axis].sum(axis=1)
-            / self.results.cross_area
+        cos_theta = self.results.dipoles[:, :, axis] / np.linalg.norm(
+            self.results.dipoles, axis=-1
         )
+        return cos_theta.sum(axis=1) / self.results.cross_area
+        # return (
+        #     0.5562
+        #     / 2
+        #     * 1000
+        #     * self.results.dipoles[:, :, axis].sum(axis=1)
+        #     / self.results.cross_area
+        # )
